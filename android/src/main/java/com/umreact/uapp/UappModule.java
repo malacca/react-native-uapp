@@ -2,8 +2,6 @@ package com.umreact.uapp;
 
 import org.json.JSONObject;
 
-import android.os.Bundle;
-import android.app.Activity;
 import android.content.Context;
 import android.app.Application;
 
@@ -21,6 +19,7 @@ import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.ReadableType;
 import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.ReadableArray;
+import com.facebook.react.bridge.LifecycleEventListener;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReadableMapKeySetIterator;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
@@ -39,7 +38,7 @@ import com.umeng.message.UmengNotificationClickHandler;
 import com.umeng.commonsdk.UMConfigure;
 import com.umeng.analytics.MobclickAgent;
 
-public class UappModule extends ReactContextBaseJavaModule {
+public class UappModule extends ReactContextBaseJavaModule implements LifecycleEventListener {
 
     private static PushAgent mPushAgent;
     private static String deviceToken = "empty";
@@ -73,7 +72,8 @@ public class UappModule extends ReactContextBaseJavaModule {
                 afterUmRegister(null);
             }
         });
-        application.registerActivityLifecycleCallbacks(new activeListener());
+        
+        // todo 通过反射方式  调用厂商推送通道的注册函数
 
         // push 监听(消息&通知)
         mPushAgent.setMessageHandler(onMessage());
@@ -86,39 +86,6 @@ public class UappModule extends ReactContextBaseJavaModule {
         while (i.hasNext()) {
             i.next().resolve(deviceToken);
             i.remove();
-        }
-    }
-
-    private static class activeListener implements Application.ActivityLifecycleCallbacks {
-        @Override
-        public void onActivityCreated(Activity activity, Bundle savedInstanceState) {
-            mPushAgent.onAppStart();
-        }
-
-        @Override
-        public void onActivityStarted(Activity activity) {
-        }
-
-        @Override
-        public void onActivityResumed(Activity activity) {
-            MobclickAgent.onResume(activity);
-        }
-
-        @Override
-        public void onActivityPaused(Activity activity) {
-            MobclickAgent.onPause(activity);
-        }
-
-        @Override
-        public void onActivityStopped(Activity activity) {
-        }
-
-        @Override
-        public void onActivitySaveInstanceState(Activity activity, Bundle outState) {
-        }
-
-        @Override
-        public void onActivityDestroyed(Activity activity) {
         }
     }
 
@@ -208,6 +175,21 @@ public class UappModule extends ReactContextBaseJavaModule {
     @Override
     public String getName() {
         return "Uapp";
+    }
+
+    @Override
+    public void onHostResume() {
+        MobclickAgent.onResume(getCurrentActivity());
+    }
+
+    @Override
+    public void onHostPause() {
+        MobclickAgent.onPause(getCurrentActivity());
+    }
+
+    @Override
+    public void onHostDestroy() {
+        //do nothing
     }
 
     /**
