@@ -166,19 +166,18 @@ import com.umreact.uapp.UappModule;
 
 
 ## 6. 优化
-在 `android/app/src/main/res` 下创建 `drawable`、`layout`、`raw` 目录 (若已存在或不需要，则无需)
+在 `android/app/src/main/res` 下创建 `drawable`、`layout`、`raw` 目录 (若已存则无需)
 
-- 在 `drawable` 下添加 `umeng_push_notification_default_large_icon.png` 和 `umeng_push_notification_default_small_icon.png` 作为推送通知的图标
+- 在 `drawable` 下添加 `umeng_push_notification_default_large_icon.png` 和 `umeng_push_notification_default_small_icon.png` 作为推送通知的图标，不设置则使用系统默认
 
-- 在 `raw` 下添加 `umeng_push_notification_default_sound.mp3` 作为推送通知的声音
+- 在 `raw` 下添加 `umeng_push_notification_default_sound.mp3` 作为推送通知的声音，不设置则使用系统默认
 
-若在初始化步骤中打开了启动屏功能
+若在初始化步骤中打开了启动屏功能，以下操作二选一
 
-- 默认情况下自带了一个 `launch_screen.xml` 作为启动屏UI （一个 LOGO 居中的画面）， 只需在 `drawable` 下添加 `launch_screen.png` 作为启动屏 LOGO
+- 默认情况下自带了一个 `launch_screen.xml` 作为启动屏UI （一个 LOGO 居中的画面）， 只需在 `drawable` 下添加 `launch_screen.png` 作为启动屏 LOGO；为保持不同手机都能清晰显示，建议创建 `drawable-hdpi`、 `drawable-mdpi`、 `drawable-xdpi`、`drawable-xxdpi`、`drawable-xxxdpi` 文件夹，并放置不同尺寸的 log 图片
 
 - 完全自定义启动屏，在 `layout` 下添加自定义的 `launch_screen.xml` 即可（需要一定的 android 开发知识）
 
-该步骤的设置都有默认值，属于优化范畴，可省略的
 
 
 ## 7. 备注
