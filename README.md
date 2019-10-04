@@ -166,19 +166,19 @@ import com.umreact.uapp.UappModule;
 
 
 ## 6. 优化
-在 `android/app/src/main/res` 下创建 `drawable`、`layout`、`raw` 目录 (若已存在或不需要，在无需)
+在 `android/app/src/main/res` 下创建 `drawable`、`layout`、`raw` 目录 (若已存在或不需要，则无需)
 
 - 在 `drawable` 下添加 `umeng_push_notification_default_large_icon.png` 和 `umeng_push_notification_default_small_icon.png` 作为推送通知的图标
 
 - 在 `raw` 下添加 `umeng_push_notification_default_sound.mp3` 作为推送通知的声音
 
-若使用了启动屏功能
+若在初始化步骤中打开了启动屏功能
 
-- 默认情况下自带了一个 `launch_screen.xml` 作为启动屏UI （为一个 LOGO 居中的画面）， 只需在 `drawable` 下添加 `launch_screen.png` 作为启动屏 LOGO
+- 默认情况下自带了一个 `launch_screen.xml` 作为启动屏UI （一个 LOGO 居中的画面）， 只需在 `drawable` 下添加 `launch_screen.png` 作为启动屏 LOGO
 
-- 完全自定义启动屏，只需在 `layout` 下添加 `launch_screen.xml` 自行制作（需要一定的 android 开发知识）
+- 完全自定义启动屏，在 `layout` 下添加自定义的 `launch_screen.xml` 即可（需要一定的 android 开发知识）
 
-备注：以上步骤都有默认值，属于优化范畴，可省略的
+该步骤的设置都有默认值，属于优化范畴，可省略的
 
 
 ## 7. 备注
