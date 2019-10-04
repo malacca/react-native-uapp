@@ -145,6 +145,11 @@ UMENG_PUSH_SECRET="xxxxx"
 ```
 ....
 
+import com.umreact.uapp.UappModule;
+
+....
+
+
   @Override
   public void onCreate() {
     super.onCreate();
