@@ -1,0 +1,5 @@
+<resources>
+    <style name="SplashScreen_Theme">
+        <item name="android:windowTranslucentStatus">true</item>
+    </style>
+</resources>

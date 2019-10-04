@@ -2,7 +2,12 @@ package com.umreact.uapp;
 
 import org.json.JSONObject;
 
+import android.os.Build;
+import android.os.Bundle;
 import android.content.Context;
+
+import android.app.Dialog;
+import android.app.Activity;
 import android.app.Application;
 
 import java.util.Map;
@@ -10,6 +15,7 @@ import java.util.List;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.ArrayList;
+import java.lang.ref.WeakReference;
 
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.Arguments;
@@ -19,7 +25,6 @@ import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.ReadableType;
 import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.ReadableArray;
-import com.facebook.react.bridge.LifecycleEventListener;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReadableMapKeySetIterator;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
@@ -32,13 +37,14 @@ import com.umeng.message.IUmengCallback;
 import com.umeng.message.entity.UMessage;
 import com.umeng.message.UmengMessageHandler;
 import com.umeng.message.IUmengRegisterCallback;
+import com.umeng.message.UmengNotifyClickActivity;
 import com.umeng.message.common.inter.ITagManager;
 import com.umeng.message.UmengNotificationClickHandler;
 
 import com.umeng.commonsdk.UMConfigure;
 import com.umeng.analytics.MobclickAgent;
 
-public class UappModule extends ReactContextBaseJavaModule implements LifecycleEventListener {
+public class UappModule extends ReactContextBaseJavaModule {
 
     private static PushAgent mPushAgent;
     private static String deviceToken = "empty";
@@ -48,11 +54,25 @@ public class UappModule extends ReactContextBaseJavaModule implements LifecycleE
     private static List<Promise> deviceTokenListener = new ArrayList<>();
     private static final String messageEvent = "UmengMessage";
 
+    private static Dialog mSplashDialog;
+    private static Boolean isEnableSplashScreen = false;
+    private static WeakReference<Activity> mActivity;
+
     // 在主工程 MainApplication.onCreate 函数中调用初始化
     public static void init(Application application) {
         init(application, false);
     }
-    public static void init(Application application, boolean logEnabled) {
+
+    public static void init(Application application, boolean enableSplashScreen) {
+        init(application, enableSplashScreen, false);
+    }
+
+    public static void init(Application application, boolean enableSplashScreen, boolean logEnabled) {
+        isEnableSplashScreen = enableSplashScreen;
+
+        // active 监听
+        application.registerActivityLifecycleCallbacks(new activeListener());
+
         // 调试
         UMConfigure.setLogEnabled(logEnabled);
 
@@ -72,7 +92,7 @@ public class UappModule extends ReactContextBaseJavaModule implements LifecycleE
                 afterUmRegister(null);
             }
         });
-        
+
         // todo 通过反射方式  调用厂商推送通道的注册函数
 
         // push 监听(消息&通知)
@@ -86,6 +106,45 @@ public class UappModule extends ReactContextBaseJavaModule implements LifecycleE
         while (i.hasNext()) {
             i.next().resolve(deviceToken);
             i.remove();
+        }
+    }
+
+    private static class activeListener implements Application.ActivityLifecycleCallbacks {
+        @Override
+        public void onActivityCreated(Activity activity, Bundle savedInstanceState) {
+            if (!(activity instanceof UmengNotifyClickActivity)) {
+                mPushAgent.onAppStart();
+            }
+            if (isEnableSplashScreen) {
+                isEnableSplashScreen = false;
+                showLaunchScreenInActivity(activity);
+            }
+        }
+
+        @Override
+        public void onActivityStarted(Activity activity) {
+        }
+
+        @Override
+        public void onActivityResumed(Activity activity) {
+            MobclickAgent.onResume(activity);
+        }
+
+        @Override
+        public void onActivityPaused(Activity activity) {
+            MobclickAgent.onPause(activity);
+        }
+
+        @Override
+        public void onActivityStopped(Activity activity) {
+        }
+
+        @Override
+        public void onActivitySaveInstanceState(Activity activity, Bundle outState) {
+        }
+
+        @Override
+        public void onActivityDestroyed(Activity activity) {
         }
     }
 
@@ -163,6 +222,55 @@ public class UappModule extends ReactContextBaseJavaModule implements LifecycleE
         }
     }
 
+    private static void showLaunchScreenInActivity(final Activity activity) {
+        if (activity == null) {
+            return;
+        }
+        mActivity = new WeakReference<Activity>(activity);
+        final int resourceId = R.style.SplashScreen_Theme;
+        activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (!activity.isFinishing()) {
+                    mSplashDialog = new Dialog(activity, resourceId);
+                    mSplashDialog.setContentView(R.layout.launch_screen);
+                    mSplashDialog.setCancelable(false);
+                    if (!mSplashDialog.isShowing()) {
+                        mSplashDialog.show();
+                    }
+                }
+            }
+        });
+    }
+
+    private static void hideLaunchScreenInActivity(Activity activity) {
+        if (activity == null) {
+            if (mActivity == null) {
+                return;
+            }
+            activity = mActivity.get();
+        }
+        if (activity == null) {
+            return;
+        }
+        final Activity _activity = activity;
+        _activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (mSplashDialog != null && mSplashDialog.isShowing()) {
+                    boolean isDestroyed = false;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                        isDestroyed = _activity.isDestroyed();
+                    }
+                    if (!_activity.isFinishing() && !isDestroyed) {
+                        mSplashDialog.dismiss();
+                    }
+                    mSplashDialog = null;
+                }
+            }
+        });
+    }
+
     /**
      * 以上为静态函数, 从这里开始扩展实例化
      * @param context ReactApplicationContext
@@ -177,19 +285,17 @@ public class UappModule extends ReactContextBaseJavaModule implements LifecycleE
         return "Uapp";
     }
 
-    @Override
-    public void onHostResume() {
-        MobclickAgent.onResume(getCurrentActivity());
+    /**
+     * 启动屏 显示/隐藏
+     */
+    @ReactMethod
+    public void showLaunchScreen() {
+        showLaunchScreenInActivity(getCurrentActivity());
     }
 
-    @Override
-    public void onHostPause() {
-        MobclickAgent.onPause(getCurrentActivity());
-    }
-
-    @Override
-    public void onHostDestroy() {
-        //do nothing
+    @ReactMethod
+    public void hideLaunchScreen() {
+        hideLaunchScreenInActivity(getCurrentActivity());
     }
 
     /**
@@ -370,15 +476,6 @@ public class UappModule extends ReactContextBaseJavaModule implements LifecycleE
     }
 
     /**
-     * 载入 push 消息, 在绑定好 message 回调函数后载入
-     */
-    @ReactMethod
-    public void initPush() {
-        pushRegistered = true;
-        emitMessageCache();
-    }
-
-    /**
      * 设置/获取 当应用处于前台时, 是否在通知栏显示通知
      */
     @ReactMethod
@@ -550,4 +647,22 @@ public class UappModule extends ReactContextBaseJavaModule implements LifecycleE
             }
         });
     }
+
+    /**
+     * 载入 push 消息, 在绑定好 message 回调函数后载入
+     */
+    @ReactMethod
+    public void initPush() {
+        pushRegistered = true;
+        emitMessageCache();
+    }
+
+    // 在 js bundle 载入后自动发送消息, 但考虑到 js 的异步特性
+    // 如果绑定监听函数是在异步操作中, 就收不到消息了, 所以把收消息的方式改为手动模式
+    // 在已绑定好消息接收函数后, 手动调用 initPush()
+    // @Override
+    // public void initialize() {
+    //    pushRegistered = true;
+    //    emitMessageCache();
+    // }
 }
