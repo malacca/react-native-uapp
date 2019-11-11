@@ -42,6 +42,7 @@
 
 -keep public class * extends android.app.Service
 -keep public class * extends org.android.agoo.mezu.MeizuPushReceiver
+-keep public class * extends com.umeng.message.UmengNotifyClickActivity
 
 -keep public class **.R$*{
    public static final int *;
