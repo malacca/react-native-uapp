@@ -1,0 +1,24 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="com.umreact.uapp">
+
+    <application>
+        <receiver android:name=".UappMeizu">
+            <intent-filter>
+                <action android:name="com.meizu.flyme.push.intent.MESSAGE" />
+                <action android:name="com.meizu.flyme.push.intent.REGISTER.FEEDBACK" />
+                <action android:name="com.meizu.flyme.push.intent.UNREGISTER.FEEDBACK" />
+                <action android:name="com.meizu.c2dm.intent.REGISTRATION" />
+                <action android:name="com.meizu.c2dm.intent.RECEIVE" />
+                <category android:name="com.umreact.uapp" />
+            </intent-filter>
+        </receiver>
+        <activity
+            android:name=".UappActivity"
+            android:theme="@android:style/Theme.Translucent"
+            android:launchMode="singleTask"
+            android:noHistory="true"
+            android:exported="true"
+        />
+    </application>
+
+</manifest>

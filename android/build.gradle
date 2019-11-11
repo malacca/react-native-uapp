@@ -1,19 +1,55 @@
 apply plugin: 'com.android.library'
 
-def channel = ""
-(new XmlSlurper()).parse('app/src/main/AndroidManifest.xml')
-    .application.'meta-data'.each {
-    if (it.'@android:name'.text().equals("UMENG_CHANNEL")) {
-        channel = it.'@android:value'.text()
-    }
-}
-
 def safeExtGet(prop, fallback) {
     rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
 }
 
+ext._pushChannel = ""
+(new XmlSlurper()).parse('app/src/main/AndroidManifest.xml').application.'meta-data'.find {
+    if (it.'@android:name'.text().equals("UMENG_CHANNEL")) {
+        ext._pushChannel = it.'@android:value'.text()
+        return true
+    }
+    return false
+}
+
+
 def safeCfgGet(prop, fallback) {
-    return project.hasProperty(prop) ? project.getProperties().get(prop) : fallback
+    project.hasProperty(prop) ? project.getProperties().get(prop).trim() : fallback
+}
+def safeCfgGet(prop) {
+    safeCfgGet(prop, "")
+}
+
+
+def isChannel(vendor, able) {
+    def name = vendor.toUpperCase()
+    def is = _pushChannel == safeCfgGet("UMENG_PUSH_"+name+"_CHANNEL", vendor)
+    able ? is && safeCfgGet("UMENG_PUSH_"+name+"_ID") : is
+}
+def isChannel(vendor) {
+    isChannel(vendor, true)
+}
+
+
+def vendorId(vendor) {
+    def name = vendor.toUpperCase()
+    safeCfgGet("UMENG_PUSH_"+name+"_ID")
+}
+def vendorKey(vendor) {
+    def name = vendor.toUpperCase()
+    safeCfgGet("UMENG_PUSH_"+name+"_KEY")
+}
+
+// 魅族特殊处理
+File meizuFile = file('src/main/java/com/umreact/uapp/UappMeizu.java');
+boolean meizuExist = meizuFile.exists();
+if (isChannel("meizu") || (isChannel("complex", false) && vendorId("meizu")) ) {
+    if (!meizuExist) {
+        meizuFile.write(file('srcBuild/UappMeizu.java').getText())
+    }
+} else if (meizuExist) {
+    meizuFile.delete();
 }
 
 android {
@@ -24,17 +60,81 @@ android {
         targetSdkVersion safeExtGet('targetSdkVersion', 28)
         versionCode 1
         versionName "1.0"
+        consumerProguardFiles "proguard.pro"
+
+        def vendor="", param=""
+        if (isChannel("xiaomi")) {
+            vendor = "xiaomi"
+            param = "${vendorId(vendor)}_${vendorKey(vendor)}"
+
+        } else if (isChannel("oppo")) {
+            vendor = "oppo"
+            param = "${vendorId(vendor)}_${vendorKey(vendor)}"
+
+        } else if (isChannel("meizu")) {
+            vendor = "meizu"
+            param = "${vendorId(vendor)}_${vendorKey(vendor)}"
+
+        } else if (isChannel("huawei")) {
+            vendor = "huawei"
+            manifestPlaceholders = [
+                    huaweiId: vendorId(vendor)
+            ]
+
+        } else if (isChannel("vivo")) {
+            vendor = "vivo"
+            manifestPlaceholders = [
+                    vivoId: vendorId(vendor),
+                    vivoKey: vendorKey(vendor)
+            ]
+
+        } else if (isChannel("complex", false)) {
+            vendor = "complex"
+            manifestPlaceholders = [
+                    huaweiId: vendorId("huawei"),
+                    vivoId: vendorId("vivo"),
+                    vivoKey: vendorKey("vivo")
+            ]
+            param = "${vendorId("xiaomi")}_${vendorKey("xiaomi")}" +
+                    "#${vendorId("oppo")}_${vendorKey("oppo")}" +
+                    "#${vendorId("meizu")}_${vendorKey("meizu")}"
+        }
+
         buildConfigField("int", "UMENG_DEVICE_TYPE", safeCfgGet("UMENG_DEVICE_TYPE", "1"))
-        buildConfigField("String", "UMENG_PUSH_SECRET", safeCfgGet("UMENG_PUSH_SECRET", "\"\""))
-        buildConfigField("String", "UMENT_PUSH_XIAOMI_ID", safeCfgGet("UMENT_PUSH_XIAOMI_ID", "\"\""))
-        buildConfigField("String", "UMENT_PUSH_XIAOMI_KEY", safeCfgGet("UMENT_PUSH_XIAOMI_KEY", "\"\""))
-        buildConfigField("String", "UMENT_PUSH_MEIZU_ID", safeCfgGet("UMENT_PUSH_MEIZU_ID", "\"\""))
-        buildConfigField("String", "UMENT_PUSH_MEIZU_KEY", safeCfgGet("UMENT_PUSH_MEIZU_KEY", "\"\""))
-        buildConfigField("String", "UMENT_PUSH_OPPO_ID", safeCfgGet("UMENT_PUSH_OPPO_ID", "\"\""))
-        buildConfigField("String", "UMENT_PUSH_OPPO_KEY", safeCfgGet("UMENT_PUSH_OPPO_KEY", "\"\""))
+        buildConfigField("String", "UMENG_PUSH_SECRET", '"' + safeCfgGet("UMENG_PUSH_SECRET") + '"')
+        buildConfigField("String", "UMENG_PUSH_VENDOR", '"' + vendor + '"')
+        buildConfigField("String", "UMENG_PUSH_PARAM", '"' + param + '"')
     }
+
+    sourceSets {
+        main {
+            def src = null
+            if (isChannel("xiaomi") || isChannel("oppo")) {
+                src = "VendorManifest"
+            } else if (isChannel("huawei")) {
+                src = "HuaweiManifest"
+            } else if (isChannel("meizu")) {
+                src = "MeizuManifest"
+            } else if (isChannel("vivo")) {
+                src = "VivoManifest"
+            } else if (isChannel("complex", false)) {
+                src = "ComplexManifest"
+            }
+            if (src != null) {
+                manifest.srcFile "srcBuild/${src}.xml"
+            }
+        }
+    }
+
     lintOptions {
         abortOnError false
+    }
+}
+
+
+rootProject.allprojects {
+    repositories {
+        maven { url 'https://dl.bintray.com/umsdk/release' }
     }
 }
 
@@ -46,26 +146,53 @@ dependencies {
     implementation 'com.umeng.umsdk:analytics:8.1.3'
     implementation 'com.umeng.umsdk:push:6.0.1'
 
-    if (channel == safeCfgGet("UMENT_PUSH_XIAOMI_CHANNEL", "xiaomi")) {
+    if (isChannel("xiaomi")) {
         implementation 'com.umeng.umsdk:xiaomi-push:3.6.17'
         implementation 'com.umeng.umsdk:xiaomi-umengaccs:1.1.0'
 
-    } else if (channel == safeCfgGet("UMENT_PUSH_HUAWEI_CHANNEL", "huawei")) {
+    } else if (isChannel("oppo")) {
+        implementation 'com.umeng.umsdk:oppo-push:1.0.1'
+        implementation 'com.umeng.umsdk:oppo-umengaccs:1.0.3'
+
+    } else if (isChannel("meizu")) {
+        implementation 'com.umeng.umsdk:meizu-push:3.8.1'
+        implementation 'com.umeng.umsdk:meizu-umengaccs:1.0.6'
+
+    } else if (isChannel("huawei")) {
         implementation 'com.umeng.umsdk:huawei-basetb:2.6.3.305'
         implementation 'com.umeng.umsdk:huawei-pushtb:2.6.3.305'
         implementation 'com.umeng.umsdk:huawei-umengaccs:1.2.1'
 
-    } else if (channel == safeCfgGet("UMENT_PUSH_MEIZU_CHANNEL", "meizu")) {
-        implementation 'com.umeng.umsdk:meizu-push:3.8.1'
-        implementation 'com.umeng.umsdk:meizu-umengaccs:1.0.6'
-
-    } else if (channel == safeCfgGet("UMENT_PUSH_OPPO_CHANNEL", "oppo")) {
-        implementation 'com.umeng.umsdk:oppo-push:1.0.1'
-        implementation 'com.umeng.umsdk:oppo-umengaccs:1.0.3'
-
-    } else if (channel == safeCfgGet("UMENT_PUSH_VIVO_CHANNEL", "vivo")) {
+    } else if (isChannel("vivo")) {
         implementation 'com.umeng.umsdk:vivo-push:2.3.1'
         implementation 'com.umeng.umsdk:vivo-umengaccs:1.0.4'
 
+    } else if (isChannel("complex", false)) {
+        if (vendorId("xiaomi")) {
+            implementation 'com.umeng.umsdk:xiaomi-push:3.6.17'
+            implementation 'com.umeng.umsdk:xiaomi-umengaccs:1.1.0'
+
+        }
+        if (vendorId("oppo")) {
+            implementation 'com.umeng.umsdk:oppo-push:1.0.1'
+            implementation 'com.umeng.umsdk:oppo-umengaccs:1.0.3'
+
+        }
+        if (vendorId("meizu")) {
+            implementation 'com.umeng.umsdk:meizu-push:3.8.1'
+            implementation 'com.umeng.umsdk:meizu-umengaccs:1.0.6'
+
+        }
+        if (vendorId("huawei")) {
+            implementation 'com.umeng.umsdk:huawei-basetb:2.6.3.305'
+            implementation 'com.umeng.umsdk:huawei-pushtb:2.6.3.305'
+            implementation 'com.umeng.umsdk:huawei-umengaccs:1.2.1'
+
+        }
+        if (vendorId("vivo")) {
+            implementation 'com.umeng.umsdk:vivo-push:2.3.1'
+            implementation 'com.umeng.umsdk:vivo-umengaccs:1.0.4'
+
+        }
     }
 }

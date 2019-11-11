@@ -9,12 +9,15 @@ import android.content.Context;
 import android.app.Dialog;
 import android.app.Activity;
 import android.app.Application;
+import android.text.TextUtils;
+import androidx.annotation.Nullable;
 
 import java.util.Map;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.ArrayList;
+import java.lang.reflect.Method;
 import java.lang.ref.WeakReference;
 
 import com.facebook.react.bridge.Promise;
@@ -42,10 +45,10 @@ import com.umeng.message.common.inter.ITagManager;
 import com.umeng.message.UmengNotificationClickHandler;
 
 import com.umeng.commonsdk.UMConfigure;
+import com.umeng.commonsdk.utils.UMUtils;
 import com.umeng.analytics.MobclickAgent;
 
 public class UappModule extends ReactContextBaseJavaModule {
-
     private static PushAgent mPushAgent;
     private static String deviceToken = "empty";
     private static Boolean pushRegistered = false;
@@ -58,168 +61,11 @@ public class UappModule extends ReactContextBaseJavaModule {
     private static Boolean isEnableSplashScreen = false;
     private static WeakReference<Activity> mActivity;
 
-    // 在主工程 MainApplication.onCreate 函数中调用初始化
-    public static void init(Application application) {
-        init(application, false);
-    }
 
-    public static void init(Application application, boolean enableSplashScreen) {
-        init(application, enableSplashScreen, false);
-    }
-
-    public static void init(Application application, boolean enableSplashScreen, boolean logEnabled) {
+    // 启动屏, 由于该功能代码量较少, 且 uapp 也要监听 activity 生命周期
+    // 所以一并放到模块内, 若要启用该功能, 应在调用 init() 函数前设置
+    public static void enableSplashScreen(boolean enableSplashScreen) {
         isEnableSplashScreen = enableSplashScreen;
-
-        // active 监听
-        application.registerActivityLifecycleCallbacks(new activeListener());
-
-        // 调试
-        UMConfigure.setLogEnabled(logEnabled);
-
-        // 初始化
-        UMConfigure.init(application, BuildConfig.UMENG_DEVICE_TYPE, BuildConfig.UMENG_PUSH_SECRET);
-        MobclickAgent.setPageCollectionMode(MobclickAgent.PageMode.MANUAL);
-
-        // push 注册
-        mPushAgent = PushAgent.getInstance(application);
-        mPushAgent.register(new IUmengRegisterCallback() {
-            @Override
-            public void onSuccess(String deviceToken) {
-                afterUmRegister(deviceToken);
-            }
-            @Override
-            public void onFailure(String s, String s1) {
-                afterUmRegister(null);
-            }
-        });
-
-        // todo 通过反射方式  调用厂商推送通道的注册函数
-
-        // push 监听(消息&通知)
-        mPushAgent.setMessageHandler(onMessage());
-        mPushAgent.setNotificationClickHandler(onNotify());
-    }
-
-    private static void afterUmRegister(String token) {
-        deviceToken = token;
-        Iterator<Promise> i = deviceTokenListener.iterator();
-        while (i.hasNext()) {
-            i.next().resolve(deviceToken);
-            i.remove();
-        }
-    }
-
-    private static class activeListener implements Application.ActivityLifecycleCallbacks {
-        @Override
-        public void onActivityCreated(Activity activity, Bundle savedInstanceState) {
-            if (!(activity instanceof UmengNotifyClickActivity)) {
-                mPushAgent.onAppStart();
-            }
-            if (isEnableSplashScreen) {
-                isEnableSplashScreen = false;
-                showLaunchScreenInActivity(activity);
-            }
-        }
-
-        @Override
-        public void onActivityStarted(Activity activity) {
-        }
-
-        @Override
-        public void onActivityResumed(Activity activity) {
-            MobclickAgent.onResume(activity);
-        }
-
-        @Override
-        public void onActivityPaused(Activity activity) {
-            MobclickAgent.onPause(activity);
-        }
-
-        @Override
-        public void onActivityStopped(Activity activity) {
-        }
-
-        @Override
-        public void onActivitySaveInstanceState(Activity activity, Bundle outState) {
-        }
-
-        @Override
-        public void onActivityDestroyed(Activity activity) {
-        }
-    }
-
-    private static UmengMessageHandler onMessage() {
-        return new UmengMessageHandler() {
-            // 不显示通知栏的 自定义消息回调
-            @Override
-            public void dealWithCustomMessage(final Context context, final UMessage msg) {
-                onPushMessage(context, msg);
-            }
-        };
-    }
-
-    private static UmengNotificationClickHandler onNotify() {
-        return new UmengNotificationClickHandler() {
-            @Override
-            public void launchApp(final Context context, final UMessage msg) {
-                super.launchApp(context, msg);
-                onPushMessage(context, msg);
-            }
-
-            @Override
-            public void openUrl(final Context context, final UMessage msg) {
-                super.launchApp(context, msg);
-                onPushMessage(context, msg);
-            }
-
-            @Override
-            public void openActivity(final Context context, final UMessage msg) {
-                super.launchApp(context, msg);
-                onPushMessage(context, msg);
-            }
-
-            @Override
-            public void dealWithCustomAction(final Context context, final UMessage msg) {
-                super.launchApp(context, msg);
-                onPushMessage(context, msg);
-            }
-        };
-    }
-
-    private static void onPushMessage(final Context context, final UMessage msg) {
-        String key;
-        JSONObject jsonObject = msg.getRaw();
-        WritableMap map = Arguments.createMap();
-        Iterator<String> keys = jsonObject.keys();
-        while (keys.hasNext()) {
-            key = keys.next();
-            try {
-                map.putString(key, jsonObject.get(key).toString());
-            } catch (Exception e) {
-                //Log.e("ReactNative", "putString fail");
-            }
-        }
-        if (pushRegistered) {
-            emitToJs(map);
-        } else {
-            launchMessage.add(map);
-        }
-    }
-
-    private static void emitToJs(WritableMap map) {
-        if (reactContext != null && reactContext.hasActiveCatalystInstance()) {
-            reactContext.getJSModule(
-                    DeviceEventManagerModule.RCTDeviceEventEmitter.class
-            ).emit(messageEvent, map);
-        }
-    }
-
-    private static void emitMessageCache() {
-        Iterator<WritableMap> i = launchMessage.iterator();
-        while (i.hasNext()) {
-            emitToJs(i.next());
-            i.remove();
-        }
     }
 
     private static void showLaunchScreenInActivity(final Activity activity) {
@@ -271,6 +117,262 @@ public class UappModule extends ReactContextBaseJavaModule {
         });
     }
 
+    // 在主工程 MainApplication.onCreate 函数中调用初始化
+    public static void init(Application application) {
+        init(application, null);
+    }
+
+    public static void init(Application application, @Nullable String channel) {
+        init(application, channel, false);
+    }
+
+    public static void init(Application application, @Nullable String channel, boolean logEnabled) {
+        // active 监听
+        application.registerActivityLifecycleCallbacks(new activeListener());
+
+        // 调试
+        UMConfigure.setLogEnabled(logEnabled);
+
+        // 初始化
+        if (channel == null) {
+            UMConfigure.init(application, BuildConfig.UMENG_DEVICE_TYPE, BuildConfig.UMENG_PUSH_SECRET);
+        } else {
+            UMConfigure.init(
+                    application,
+                    UMUtils.getAppkeyByXML(application),
+                    channel,
+                    BuildConfig.UMENG_DEVICE_TYPE,
+                    BuildConfig.UMENG_PUSH_SECRET
+            );
+        }
+
+        // 设置统计模式
+        MobclickAgent.setPageCollectionMode(MobclickAgent.PageMode.MANUAL);
+
+        // push 注册
+        mPushAgent = PushAgent.getInstance(application);
+        mPushAgent.register(new IUmengRegisterCallback() {
+            @Override
+            public void onSuccess(String deviceToken) {
+                afterUmRegister(deviceToken);
+            }
+            @Override
+            public void onFailure(String s, String s1) {
+                afterUmRegister(null);
+            }
+        });
+
+        // 注册厂商通道
+        registerVendor(application);
+
+        // push 监听(消息&通知)
+        mPushAgent.setMessageHandler(onMessage());
+        mPushAgent.setNotificationClickHandler(onNotify());
+    }
+
+    private static void afterUmRegister(String token) {
+        deviceToken = token;
+        Iterator<Promise> i = deviceTokenListener.iterator();
+        while (i.hasNext()) {
+            i.next().resolve(deviceToken);
+            i.remove();
+        }
+    }
+
+    // 通过反射方式  调用厂商推送通道的注册函数
+    private static void registerVendor(Application application) {
+        String channel = BuildConfig.UMENG_PUSH_VENDOR,
+                param = BuildConfig.UMENG_PUSH_PARAM;
+        String[] auth = null;
+
+        if ("complex".equals(channel)) {
+            String brand = Brand.get();
+            if ("other".equals(brand)) {
+                return;
+            }
+            int key = "xiaomi".equals(brand) ? 0 : (
+                    "oppo".equals(brand) ? 1 : (
+                            "meizu".equals(brand) ? 2 : -1
+                    )
+            );
+            if (key > -1) {
+                String[] params = param.split("#");
+                auth = params[key].split("_");
+                if (TextUtils.isEmpty(auth[0])) {
+                    return;
+                }
+            }
+            channel = brand;
+        } else if ("xiaomi".equals(channel) || "oppo".equals(channel) || "meizu".equals(channel)) {
+            auth = param.split("_");
+        }
+
+        String driver = null;
+        boolean isVivo = false;
+        boolean isHuawei = false;
+        switch (channel) {
+            case "xiaomi":
+                driver = "org.android.agoo.xiaomi.MiPushRegistar";
+                break;
+            case "huawei":
+                isHuawei = true;
+                driver = "org.android.agoo.huawei.HuaWeiRegister";
+                break;
+            case "meizu":
+                driver = "org.android.agoo.mezu.MeizuRegister";
+                break;
+            case "oppo":
+                driver = "org.android.agoo.oppo.OppoRegister";
+                break;
+            case "vivo":
+                isVivo = true;
+                driver = "org.android.agoo.vivo.VivoRegister";
+                break;
+        }
+        if (driver == null) {
+            return;
+        }
+
+        try {
+            Class<?> cls = Class.forName(driver);
+            if (isHuawei || isVivo) {
+                Method method = cls.getDeclaredMethod(
+                        "register",
+                        isVivo ? Context.class : Application.class
+                );
+                method.invoke(cls, application);
+            } else {
+                Method method = cls.getDeclaredMethod(
+                        "register",
+                        Context.class,
+                        String.class,
+                        String.class
+                );
+                method.invoke(cls, application, auth[0], auth[1]);
+            }
+        } catch (Throwable e) {
+            // do nothing
+        }
+    }
+
+    // 监听 mainActivity 生命周期
+    private static class activeListener implements Application.ActivityLifecycleCallbacks {
+        @Override
+        public void onActivityCreated(Activity activity, Bundle savedInstanceState) {
+            if (!(activity instanceof UmengNotifyClickActivity)) {
+                mPushAgent.onAppStart();
+            }
+            if (isEnableSplashScreen) {
+                isEnableSplashScreen = false;
+                showLaunchScreenInActivity(activity);
+            }
+        }
+
+        @Override
+        public void onActivityStarted(Activity activity) {
+        }
+
+        @Override
+        public void onActivityResumed(Activity activity) {
+            MobclickAgent.onResume(activity);
+        }
+
+        @Override
+        public void onActivityPaused(Activity activity) {
+            MobclickAgent.onPause(activity);
+        }
+
+        @Override
+        public void onActivityStopped(Activity activity) {
+        }
+
+        @Override
+        public void onActivitySaveInstanceState(Activity activity, Bundle outState) {
+        }
+
+        @Override
+        public void onActivityDestroyed(Activity activity) {
+        }
+    }
+
+    private static UmengMessageHandler onMessage() {
+        return new UmengMessageHandler() {
+            // 不显示通知栏的 自定义消息回调
+            @Override
+            public void dealWithCustomMessage(final Context context, final UMessage msg) {
+                onPushMessage(msg);
+            }
+        };
+    }
+
+    private static UmengNotificationClickHandler onNotify() {
+        return new UmengNotificationClickHandler() {
+            @Override
+            public void launchApp(final Context context, final UMessage msg) {
+                super.launchApp(context, msg);
+                onPushMessage(msg);
+            }
+
+            @Override
+            public void openUrl(final Context context, final UMessage msg) {
+                super.launchApp(context, msg);
+                onPushMessage(msg);
+            }
+
+            @Override
+            public void openActivity(final Context context, final UMessage msg) {
+                super.launchApp(context, msg);
+                onPushMessage(msg);
+            }
+
+            @Override
+            public void dealWithCustomAction(final Context context, final UMessage msg) {
+                super.launchApp(context, msg);
+                onPushMessage(msg);
+            }
+        };
+    }
+
+    private static void onPushMessage(final UMessage msg) {
+        handlePushMessage(msg.getRaw());
+    }
+
+    // 处理推送消息: js未准备好,java缓存,待js准备好后进行通知; 否则直接通知
+    public static void handlePushMessage(JSONObject jsonObject) {
+        String key;
+        WritableMap map = Arguments.createMap();
+        Iterator<String> keys = jsonObject.keys();
+        while (keys.hasNext()) {
+            key = keys.next();
+            try {
+                map.putString(key, jsonObject.get(key).toString());
+            } catch (Exception e) {
+                //Log.e("ReactNative", "putString fail");
+            }
+        }
+        if (pushRegistered) {
+            emitToJs(map);
+        } else {
+            launchMessage.add(map);
+        }
+    }
+
+    private static void emitToJs(WritableMap map) {
+        if (reactContext != null && reactContext.hasActiveCatalystInstance()) {
+            reactContext.getJSModule(
+                    DeviceEventManagerModule.RCTDeviceEventEmitter.class
+            ).emit(messageEvent, map);
+        }
+    }
+
+    private static void emitMessageCache() {
+        Iterator<WritableMap> i = launchMessage.iterator();
+        while (i.hasNext()) {
+            emitToJs(i.next());
+            i.remove();
+        }
+    }
+
     /**
      * 以上为静态函数, 从这里开始扩展实例化
      * @param context ReactApplicationContext
@@ -283,6 +385,14 @@ public class UappModule extends ReactContextBaseJavaModule {
     @Override
     public String getName() {
         return "Uapp";
+    }
+
+    /**
+     * 自动载入推送功能有一个获取设备品牌的接口, 不浪费, 暴露给 js
+     */
+    @ReactMethod
+    public void getBrand(Promise promise) {
+        promise.resolve(Brand.get());
     }
 
     /**
