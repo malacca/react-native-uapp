@@ -50,6 +50,7 @@ import com.umeng.analytics.MobclickAgent;
 
 public class UappModule extends ReactContextBaseJavaModule {
     private static PushAgent mPushAgent;
+    private static Boolean umengInited = false;
     private static String deviceToken = "empty";
     private static Boolean pushRegistered = false;
     private static ReactApplicationContext reactContext = null;
@@ -127,6 +128,11 @@ public class UappModule extends ReactContextBaseJavaModule {
     }
 
     public static void init(Application application, @Nullable String channel, boolean logEnabled) {
+        if (umengInited) {
+            return;
+        }
+        umengInited = true;
+
         // active 监听
         application.registerActivityLifecycleCallbacks(new activeListener());
 
