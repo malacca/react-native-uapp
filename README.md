@@ -108,6 +108,12 @@ import com.umreact.uapp.UappModule;
     # 第二个参数: 渠道, 设置为 null 则使用 manifest 的 UMENG_CHANNEL
     # 第三个参数: 是否开启 android 日志
     UappModule.init(this, null|string, bool);
+
+    # 或 日志在 debug 模式下开启, 反之不开启
+    UappModule.init(this, null|string);
+
+    # 或 日志同上, channal 使用 manifest 的 UMENG_CHANNEL
+    UappModule.init(this);
     .....
   }
 

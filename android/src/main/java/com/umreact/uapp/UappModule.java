@@ -124,7 +124,7 @@ public class UappModule extends ReactContextBaseJavaModule {
     }
 
     public static void init(Application application, @Nullable String channel) {
-        init(application, channel, false);
+        init(application, channel, BuildConfig.DEBUG);
     }
 
     public static void init(Application application, @Nullable String channel, boolean logEnabled) {
