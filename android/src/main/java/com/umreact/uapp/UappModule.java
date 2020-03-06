@@ -456,7 +456,7 @@ public class UappModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void onProviderSignIn(String ID, String Provider) {
+    public void onProfileSignIn(String ID, String Provider) {
         MobclickAgent.onProfileSignIn(Provider, ID);
     }
 
@@ -574,7 +574,7 @@ public class UappModule extends ReactContextBaseJavaModule {
      * 手动设置用户 经纬度
      */
     @ReactMethod
-    public void reportError(double latitude, double longitude) {
+    public void setLocation(double latitude, double longitude) {
         MobclickAgent.setLocation(latitude, longitude);
     }
 
